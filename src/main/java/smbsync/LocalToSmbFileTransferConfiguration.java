@@ -1,6 +1,5 @@
 package smbsync;
 
-import jcifs.DialectVersion;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.integration.dsl.IntegrationFlow;
@@ -17,31 +16,23 @@ import java.io.File;
 @Configuration
 public class LocalToSmbFileTransferConfiguration {
 
-    @Bean
-    public SmbSessionFactory smbSessionFactory() {
-        final var smbSessionFactory = new SmbSessionFactory();
-        smbSessionFactory.setHost("myHost");
-        smbSessionFactory.setPort(445);
-        smbSessionFactory.setDomain("myDomain");
-        smbSessionFactory.setUsername("myUsername");
-        smbSessionFactory.setPassword("myPassword");
-        smbSessionFactory.setShareAndDir("/myShareAndDir");
-        smbSessionFactory.setSmbMinVersion(DialectVersion.SMB210);
-        smbSessionFactory.setSmbMaxVersion(DialectVersion.SMB311);
-        return smbSessionFactory;
+    private final SmbSessionFactory smbSessionFactory;
+
+    public LocalToSmbFileTransferConfiguration(SmbSessionFactory smbSessionFactory) {
+        this.smbSessionFactory = smbSessionFactory;
     }
 
     @Bean
     public IntegrationFlow fileToSmbSyncFlow() {
         return IntegrationFlow.from(
-                        Files.inboundAdapter(new File("myLocalDirectory"))
+                        Files.inboundAdapter(new File("myLocalExportDirectory"))
                                 .preventDuplicates(false),
                         e -> e.poller(Pollers.fixedDelay(1000).maxMessagesPerPoll(-1))
                 )
                 .transform(Files.toStringTransformer())
-                .handle(Smb.outboundAdapter(smbSessionFactory(), FileExistsMode.REPLACE)
+                .handle(Smb.outboundAdapter(smbSessionFactory, FileExistsMode.REPLACE)
                                 .useTemporaryFileName(true)
-                                .remoteDirectory("/remoteDirectory"),
+                                .remoteDirectory("/remoteExportDirectory"),
                         e -> e.advice(originalFileDeletionAdvice())
                 )
                 .get();
